@@ -1,0 +1,53 @@
+# -----------------------------------------------
+# Параметри образу
+# -----------------------------------------------
+image:
+  repository: <ACCOUNT_ID>.dkr.ecr.us-west-2.amazonaws.com/lesson-7-ecr
+  tag: "latest"
+  pullPolicy: Always
+
+# -----------------------------------------------
+# Параметри реплік
+# -----------------------------------------------
+replicaCount: 2
+
+# -----------------------------------------------
+# Параметри сервісу
+# -----------------------------------------------
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8000
+
+# -----------------------------------------------
+# Параметри Horizontal Pod Autoscaler
+# -----------------------------------------------
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+# -----------------------------------------------
+# Ресурси контейнера
+# -----------------------------------------------
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# -----------------------------------------------
+# Змінні середовища (ConfigMap)
+# Перенесені з теми 4
+# -----------------------------------------------
+config:
+  DJANGO_SETTINGS_MODULE: "app.settings"
+  DJANGO_ALLOWED_HOSTS: "*"
+  DEBUG: "False"
+  DATABASE_ENGINE: "django.db.backends.postgresql"
+  DATABASE_HOST: "db"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "django_db"
+  DATABASE_USER: "django_user"
