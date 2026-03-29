@@ -1,0 +1,144 @@
+// -----------------------------------------------
+// Jenkinsfile — CI/CD pipeline для Django-застосунку
+// Stages: Build (Kaniko) → Push ECR → Update Helm values → Git push
+//
+// Передумови (Jenkins credentials):
+//   - 'github-credentials' — Username/Password (GitHub username + PAT)
+//
+// Передумови (Jenkins Controller environment vars):
+//   - ECR_REPO    — <account>.dkr.ecr.<region>.amazonaws.com/<name>
+//   - GITHUB_REPO — https://github.com/<org>/<repo>
+// -----------------------------------------------
+
+pipeline {
+    agent none
+
+    environment {
+        AWS_REGION      = 'us-west-2'
+        CHART_VALUES    = 'charts/django-app/values.yaml'
+        GIT_CREDENTIALS = 'github-credentials'
+    }
+
+    stages {
+
+        // -----------------------------------------------
+        // Stage 1: Build & Push через Kaniko
+        // - git container клонує репо в /workspace (shared emptyDir)
+        // - IMAGE_TAG зберігається у /workspace/.image_tag (shared між containers)
+        // - kaniko container читає тег та будує образ
+        // -----------------------------------------------
+        stage('Build & Push') {
+            agent {
+                label 'kaniko'
+            }
+            steps {
+                container('git') {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: "${GIT_CREDENTIALS}",
+                            usernameVariable: 'GIT_USER',
+                            passwordVariable: 'GIT_TOKEN'
+                        )
+                    ]) {
+                        sh '''
+                            git config --global user.email "jenkins@ci.local"
+                            git config --global user.name "Jenkins CI"
+
+                            REPO_URL_WITH_CREDS=$(echo ${GITHUB_REPO} | \
+                                sed "s|https://|https://${GIT_USER}:${GIT_TOKEN}@|")
+
+                            git clone --depth=1 "${REPO_URL_WITH_CREDS}" /workspace
+
+                            # IMAGE_TAG у /workspace/.image_tag — shared emptyDir між containers
+                            GIT_SHORT=$(git -C /workspace rev-parse --short=7 HEAD)
+                            echo "${BUILD_NUMBER}-${GIT_SHORT}" > /workspace/.image_tag
+                        '''
+                    }
+                }
+
+                container('kaniko') {
+                    sh '''
+                        # /workspace — shared emptyDir, IMAGE_TAG доступний
+                        IMAGE_TAG=$(cat /workspace/.image_tag)
+                        ECR_REGISTRY=$(echo ${ECR_REPO} | cut -d'/' -f1)
+
+                        # IRSA надає AWS credentials автоматично через IMDSv2
+                        ECR_TOKEN=$(aws ecr get-login-password --region ${AWS_REGION})
+
+                        mkdir -p /kaniko/.docker
+                        printf '{"auths":{"%s":{"auth":"%s"}}}' \
+                            "${ECR_REGISTRY}" \
+                            "$(printf 'AWS:%s' "${ECR_TOKEN}" | base64 | tr -d '\n')" \
+                            > /kaniko/.docker/config.json
+
+                        /kaniko/executor \
+                            --context=dir:///workspace \
+                            --dockerfile=/workspace/Dockerfile \
+                            --ignore-path=/workspace/.image_tag \
+                            --destination=${ECR_REPO}:${IMAGE_TAG} \
+                            --destination=${ECR_REPO}:latest \
+                            --cache=true \
+                            --cache-repo=${ECR_REPO}/cache \
+                            --compressed-caching=false
+                    '''
+                }
+            }
+        }
+
+        // -----------------------------------------------
+        // Stage 2: Оновлення тегу образу в values.yaml
+        // IMAGE_TAG перераховується детерміністично:
+        //   BUILD_NUMBER + SHA7 HEAD (той самий коміт що й Stage 1)
+        // -----------------------------------------------
+        stage('Update Helm Values') {
+            agent {
+                label 'kaniko'
+            }
+            steps {
+                container('git') {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: "${GIT_CREDENTIALS}",
+                            usernameVariable: 'GIT_USER',
+                            passwordVariable: 'GIT_TOKEN'
+                        )
+                    ]) {
+                        sh '''
+                            git config --global user.email "jenkins@ci.local"
+                            git config --global user.name "Jenkins CI"
+
+                            REPO_URL_WITH_CREDS=$(echo ${GITHUB_REPO} | \
+                                sed "s|https://|https://${GIT_USER}:${GIT_TOKEN}@|")
+
+                            git clone --depth=1 "${REPO_URL_WITH_CREDS}" /tmp/repo
+                            cd /tmp/repo
+
+                            # Детерміністично: той самий BUILD_NUMBER + SHA7 того ж коміту
+                            GIT_SHORT=$(git rev-parse --short=7 HEAD)
+                            IMAGE_TAG="${BUILD_NUMBER}-${GIT_SHORT}"
+
+                            sed -i "s|^  repository:.*|  repository: ${ECR_REPO}|" ${CHART_VALUES}
+                            sed -i "s|^  tag:.*|  tag: ${IMAGE_TAG}|" ${CHART_VALUES}
+
+                            git diff ${CHART_VALUES}
+
+                            git add ${CHART_VALUES}
+                            git commit -m "ci: update django-app image tag to ${IMAGE_TAG} [skip ci]"
+                            git push origin HEAD:main
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline успішно завершено. Build: ${BUILD_NUMBER}"
+            echo "Argo CD синхронізує зміни автоматично."
+        }
+        failure {
+            echo "Pipeline завершився з помилкою. Build: ${BUILD_NUMBER}"
+        }
+    }
+}

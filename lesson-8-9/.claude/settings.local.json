@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/STUDY/Projects/goit-devops/lesson-8-9 -type f \\\\\\(-name *.tf -o -name *.yaml -o -name Jenkinsfile \\\\\\))",
+      "WebFetch(domain:github.com)",
+      "Bash(grep -o '\\\\${[^}]*}' /c/STUDY/Projects/goit-devops/lesson-8-9/modules/jenkins/values.yaml)"
+    ]
+  }
+}
