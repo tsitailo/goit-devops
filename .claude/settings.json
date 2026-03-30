@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(grep -n \"^output\" modules/*/outputs.tf)",
-      "Bash(grep -A 2 'variable \"\"chart_version\"\"' modules/jenkins/variables.tf)",
-      "Bash(grep -n \"aws_db_instance\\\\|aws_rds_cluster\\\\|aws_rds_cluster_instance\" modules/rds/*.tf)"
-    ]
-  }
-}
