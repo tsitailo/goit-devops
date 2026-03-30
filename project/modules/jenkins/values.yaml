@@ -1,0 +1,118 @@
+# -----------------------------------------------
+# Jenkins Helm values
+# Kaniko agent для збірки Docker-образів без Docker daemon
+# -----------------------------------------------
+
+controller:
+  serviceType: LoadBalancer
+  adminUser: "${admin_user}"
+  adminPassword: "${admin_password}"
+
+  resources:
+    requests:
+      cpu: "${controller_cpu_request}"
+      memory: "${controller_memory_request}"
+    limits:
+      cpu: "${controller_cpu_limit}"
+      memory: "${controller_memory_limit}"
+
+  # Java options
+  javaOpts: "-Xms256m -Xmx512m"
+
+  # Встановлення плагінів
+  installPlugins:
+    - kubernetes:latest
+    - git:latest
+    - workflow-aggregator:latest
+    - aws-credentials:latest
+    - pipeline-aws:latest
+    - git-parameter:latest
+    - credentials-binding:latest
+    - plain-credentials:latest
+    - workflow-job:latest
+    - pipeline-stage-view:latest
+
+  # Відключити вбудований виконавець (використовуємо K8s агентів)
+  numExecutors: 0
+
+  # Змінні середовища для pipeline
+  containerEnv:
+    - name: ECR_REPO
+      value: "${aws_account_id}.dkr.ecr.${aws_region}.amazonaws.com/${ecr_name}"
+    - name: AWS_DEFAULT_REGION
+      value: "${aws_region}"
+    - name: GITHUB_REPO
+      value: "${github_repo_url}"
+
+  # JCasC — налаштування Jenkins через конфігураційний код
+  JCasC:
+    configScripts:
+      kubernetes-cloud: |
+        jenkins:
+          clouds:
+            - kubernetes:
+                name: "kubernetes"
+                serverUrl: "https://kubernetes.default.svc"
+                namespace: "${namespace}"
+                jenkinsUrl: "http://jenkins-controller.${namespace}.svc.cluster.local:8080"
+                jenkinsTunnel: "jenkins-agent.${namespace}.svc.cluster.local:50000"
+                connectTimeout: 5
+                readTimeout: 15
+                containerCap: 10
+                podRetention: Never
+                podTemplates:
+                  - name: "kaniko"
+                    label: "kaniko"
+                    namespace: "${namespace}"
+                    serviceAccount: "jenkins"
+                    containers:
+                      - name: "kaniko"
+                        image: "gcr.io/kaniko-project/executor:v1.21.0-debug"
+                        command: "/busybox/cat"
+                        ttyEnabled: true
+                        resources:
+                          requests:
+                            cpu: "500m"
+                            memory: "512Mi"
+                          limits:
+                            cpu: "1000m"
+                            memory: "1Gi"
+                        envVars:
+                          - envVar:
+                              key: "AWS_SDK_LOAD_CONFIG"
+                              value: "true"
+                      - name: "git"
+                        image: "alpine/git:latest"
+                        command: "cat"
+                        ttyEnabled: true
+                        resources:
+                          requests:
+                            cpu: "100m"
+                            memory: "128Mi"
+                    volumes:
+                      - emptyDirVolume:
+                          mountPath: "/kaniko/.docker"
+                          memory: false
+                      - emptyDirVolume:
+                          mountPath: "/workspace"
+                          memory: false
+
+persistence:
+  enabled: true
+  size: "${storage_size}"
+  storageClass: "gp2"
+
+agent:
+  enabled: true
+  namespace: "${namespace}"
+
+# ServiceAccount з анотацією для IRSA (ECR push)
+serviceAccount:
+  create: true
+  name: jenkins
+  annotations:
+    eks.amazonaws.com/role-arn: "${irsa_role_arn}"
+
+rbac:
+  create: true
+  readSecrets: true

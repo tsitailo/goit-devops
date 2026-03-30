@@ -1,0 +1,5 @@
+apiVersion: v2
+name: argocd-apps
+description: Helm chart для створення Argo CD Applications та Repository secrets
+type: application
+version: 0.1.0

@@ -1,0 +1,28 @@
+# -----------------------------------------------
+# Значення для argocd-apps chart
+# Підставляються через templatefile із argocd.tf
+# -----------------------------------------------
+
+applications:
+  - name: "${app_name}"
+    namespace: "${argocd_namespace}"
+    destination:
+      server: https://kubernetes.default.svc
+      namespace: "${app_namespace}"
+    source:
+      repoURL: "${github_repo_url}"
+      targetRevision: "${target_revision}"
+      path: "${helm_chart_path}"
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+        - CreateNamespace=true
+
+repositories:
+  - name: django-app-repo
+    url: "${github_repo_ssh_url}"
+    type: git
+    sshPrivateKey: |
+${github_repo_ssh_key}

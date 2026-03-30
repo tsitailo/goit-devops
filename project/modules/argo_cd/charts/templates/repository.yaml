@@ -1,0 +1,19 @@
+{{- range .Values.repositories }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: {{ .type }}
+  url: {{ .url }}
+  name: {{ .name }}
+  {{- if .sshPrivateKey }}
+  sshPrivateKey: |
+{{- .sshPrivateKey | nindent 4 }}
+  {{- end }}
+{{- end }}

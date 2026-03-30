@@ -1,0 +1,63 @@
+# -----------------------------------------------
+# Параметри образу
+# -----------------------------------------------
+image:
+  # Замінюється автоматично pipeline або при helm install --set image.repository=...
+  repository: ""
+  tag: "latest"
+  pullPolicy: Always
+
+# -----------------------------------------------
+# Параметри реплік
+# -----------------------------------------------
+replicaCount: 2
+
+# -----------------------------------------------
+# Параметри сервісу
+# -----------------------------------------------
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8000
+
+# -----------------------------------------------
+# Параметри Horizontal Pod Autoscaler
+# -----------------------------------------------
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+# -----------------------------------------------
+# Ресурси контейнера
+# -----------------------------------------------
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# -----------------------------------------------
+# Змінні середовища (ConfigMap)
+# DATABASE_PASSWORD — у Kubernetes Secret через External Secrets Operator
+# -----------------------------------------------
+config:
+  DJANGO_SETTINGS_MODULE: "app.settings"
+  DJANGO_ALLOWED_HOSTS: "*"
+  DEBUG: "False"
+  DATABASE_ENGINE: "django.db.backends.postgresql"
+  DATABASE_HOST: "db"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "django_db"
+  DATABASE_USER: "django_user"
+
+# -----------------------------------------------
+# External Secrets — отримання пароля БД з AWS Secrets Manager
+# -----------------------------------------------
+externalSecrets:
+  region: "us-west-2"
+  # ВАЖЛИВО: secretName = "${rds_identifier}/db-password" з variables.tf
+  # Якщо змінюєш rds_identifier — оновити це значення теж
+  secretName: "project-db/db-password"
