@@ -1,0 +1,57 @@
+# -----------------------------------------------
+# Argo CD Helm values
+# -----------------------------------------------
+
+global:
+  domain: ""
+
+configs:
+  params:
+    # Вимикаємо TLS на сервері (TLS термінується на LoadBalancer)
+    server.insecure: true
+  cm:
+    # Дозволяємо автоматичну синхронізацію
+    resource.compareoptions: |
+      ignoreAggregatedRoles: true
+
+server:
+  service:
+    type: LoadBalancer
+  resources:
+    requests:
+      cpu: "${server_cpu_request}"
+      memory: "${server_memory_request}"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Вимикаємо компоненти, що не потрібні
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+
+repoServer:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+
+controller:
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+
+redis:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
