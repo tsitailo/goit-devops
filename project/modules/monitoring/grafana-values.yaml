@@ -1,0 +1,28 @@
+# -----------------------------------------------
+# Helm values для Grafana
+# -----------------------------------------------
+
+adminPassword: "${grafana_admin_password}"
+
+persistence:
+  enabled: true
+  size: "${grafana_storage_size}"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "200m"
+    memory: "256Mi"
+
+# Автоматично підключаємо Prometheus як джерело даних
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server.${namespace}.svc.cluster.local
+        isDefault: true
+        access: proxy

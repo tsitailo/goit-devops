@@ -1,0 +1,26 @@
+# -----------------------------------------------
+# Helm values для Prometheus
+# -----------------------------------------------
+
+server:
+  retention: "${prometheus_retention}"
+
+  persistentVolume:
+    enabled: true
+    size: "${prometheus_storage_size}"
+
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+alertmanager:
+  enabled: true
+  persistence:
+    size: "2Gi"
+
+pushgateway:
+  enabled: false
